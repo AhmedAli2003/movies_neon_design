@@ -1,0 +1,70 @@
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+class MaskedImage extends StatelessWidget {
+  final String? asset;
+  final String? mask;
+
+  const MaskedImage({
+    super.key,
+    required this.asset,
+    required this.mask,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return FutureBuilder<List>(
+          future: _createShaderAndImage(
+            asset!,
+            mask!,
+            constraints.maxWidth,
+            constraints.maxHeight,
+          ),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox.shrink();
+            return ShaderMask(
+              blendMode: BlendMode.dstATop,
+              shaderCallback: (rect) => snapshot.data![0],
+              child: snapshot.data![1],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List> _createShaderAndImage(
+    String asset,
+    String mask,
+    double w,
+    double h,
+  ) async {
+    final ByteData data = await rootBundle.load(asset);
+    final ByteData maskData = await rootBundle.load(mask);
+
+    final Codec codec = await instantiateImageCodec(
+      maskData.buffer.asUint8List(),
+      targetWidth: w.toInt(),
+      targetHeight: h.toInt(),
+    );
+    final FrameInfo fi = await codec.getNextFrame();
+
+    final ImageShader shader = ImageShader(
+      fi.image,
+      TileMode.clamp,
+      TileMode.clamp,
+      Matrix4.identity().storage,
+    );
+    final Image image = Image.memory(
+      data.buffer.asUint8List(),
+      fit: BoxFit.cover,
+      width: w,
+      height: h,
+    );
+    return [shader, image];
+  }
+}
